@@ -8,7 +8,7 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // --- State for the "New Doctor" form ---
+
   const [docUsername, setDocUsername] = useState('');
   const [docPassword, setDocPassword] = useState('');
   const [docFirstName, setDocFirstName] = useState('');
@@ -17,17 +17,15 @@ function AdminDashboard() {
   const [docError, setDocError] = useState('');
   const [docSuccess, setDocSuccess] = useState('');
 
-  // --- State for the "New Specialty" form ---
+ 
   const [newSpecialtyName, setNewSpecialtyName] = useState('');
 
 
-  // --- Re-usable data fetching functions ---
+
   const fetchDoctors = useCallback(async () => {
     try {
-      // We need a new endpoint to get ALL doctors
-      // Let's assume we create one at '/api/admin/doctors'
-      // For now, we'll just re-fetch everything
-      const response = await apiClient.get('/api/admin/doctors'); // We need to create this
+
+      const response = await apiClient.get('/api/admin/doctors'); 
       setDoctors(response.data);
     } catch (err) {
       console.error('Error fetching doctors:', err);
@@ -45,7 +43,7 @@ function AdminDashboard() {
     }
   }, []);
 
-  // --- Initial data load ---
+
   useEffect(() => {
     const fetchAllData = async () => {
       setLoading(true);
@@ -54,8 +52,6 @@ function AdminDashboard() {
         const statsRes = await apiClient.get('/api/admin/dashboard');
         setStats(statsRes.data);
         
-        // We'll placeholder the doctor fetch for now
-        // await fetchDoctors(); 
         await fetchSpecialties();
 
       } catch (err) {
@@ -66,9 +62,9 @@ function AdminDashboard() {
       }
     };
     fetchAllData();
-  }, [fetchSpecialties]); // Removed fetchDoctors for now
+  }, [fetchSpecialties]); 
 
-  // --- Form Handlers ---
+ 
   const handleAddDoctor = async (e) => {
     e.preventDefault();
     setDocError('');
@@ -86,13 +82,13 @@ function AdminDashboard() {
         specialtyId: docSpecialty,
       });
       setDocSuccess(`Doctor ${response.data.username} created!`);
-      // Clear form
+   
       setDocUsername('');
       setDocPassword('');
       setDocFirstName('');
       setDocLastName('');
       setDocSpecialty('');
-      // await fetchDoctors(); // Refresh doctor list
+      
     } catch (err) {
       console.error('Error creating doctor:', err);
       setDocError(err.response?.data?.error || 'Failed to create doctor.');
@@ -104,15 +100,15 @@ function AdminDashboard() {
     if (!newSpecialtyName) return;
     try {
       const response = await apiClient.post('/api/admin/specialties', { name: newSpecialtyName });
-      setSpecialties([...specialties, response.data]); // Add new specialty to list
-      setNewSpecialtyName(''); // Clear input
+      setSpecialties([...specialties, response.data]); 
+      setNewSpecialtyName(''); 
     } catch (err) {
       console.error('Error adding specialty:', err);
       alert(err.response?.data?.error || 'Failed to add specialty.');
     }
   };
 
-  // --- Render logic ---
+ 
   if (loading) return <h1>Loading Admin Dashboard...</h1>;
   if (error) return <h1 className="error-message">{error}</h1>;
 

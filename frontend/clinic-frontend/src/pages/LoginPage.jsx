@@ -30,32 +30,37 @@ function LoginPage() {
     }
   };
 
-  // 2. Add the new CSS class names
   return (
-    <div className="login-container">
-      <form className="login-form" onSubmit={handleLogin}>
-        <h1>Clinic Login</h1>
-        <div>
-          <label htmlFor="username">Username:</label>
-          <input 
-            id="username"
-            type="text" 
-            value={username} 
-            onChange={(e) => setUsername(e.target.value)} 
-          />
-        </div>
-        <div>
-          <label htmlFor="password">Password:</label>
-          <input 
-            id="password"
-            type="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-          />
-        </div>
-        <button type="submit">Login</button>
-        {error && <p className="login-error">{error}</p>}
-      </form>
+    <div className="login-page__container">
+      <div className="login-page__decorative-side">
+        {/* Added Medilink text here */}
+        <span className="decorative-side__title">Medilink</span>
+      </div>
+      <div className="login-container">
+        <form className="login-form" onSubmit={handleLogin}>
+          <h1>Clinic Login</h1>
+          <div>
+            <label htmlFor="username">Username:</label>
+            <input 
+              id="username"
+              type="text" 
+              value={username} 
+              onChange={(e) => setUsername(e.target.value)} 
+            />
+          </div>
+          <div>
+            <label htmlFor="password">Password:</label>
+            <input 
+              id="password"
+              type="password" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+            />
+          </div>
+          <button type="submit">Login</button>
+          {error && <p className="login-error">{error}</p>}
+        </form>
+      </div>
     </div>
   );
 }

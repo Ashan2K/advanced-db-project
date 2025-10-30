@@ -110,4 +110,22 @@ router.delete('/doctors/:id', async (req, res) => {
     }
 });
 
+router.get('/doctors', async (req, res) => {
+    let connection;
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        const [rows] = await connection.query(
+            `SELECT * FROM v_DoctorList ORDER BY last_name`
+        );
+       
+        
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error('Error fetching doctors:', error);
+        res.status(5.00).json({ error: 'Server error' });
+    } finally {
+        if (connection) await connection.end();
+    }
+});
+
 module.exports = router;
