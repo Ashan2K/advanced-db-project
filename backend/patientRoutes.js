@@ -31,6 +31,40 @@ router.get('/profile', async (req, res) => {
 });
 
 
+router.put('/profile', async (req, res) => {
+    
+    const patientId = req.user.patientId; 
+    
+ 
+    const { first_name, last_name, email, phone, dob } = req.body;
+
+ 
+    if (!first_name || !last_name || !email) {
+        return res.status(400).json({ error: 'First name, last name, and email are required.' });
+    }
+    const formattedDob = new Date(dob).toISOString().split('T')[0];
+    let connection;
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        const sql = 'CALL sp_UpdatePatientProfile(?, ?, ?, ?, ?, ?)';
+        const params = [patientId, first_name, last_name, email, phone, formattedDob];
+        
+        const [results] = await connection.execute(sql, params);
+        
+    
+        res.status(200).json(results[0][0]); 
+
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(409).json({ error: 'This email is already in use.' });
+        }
+        res.status(500).json({ error: 'Server error' });
+    } finally {
+        if (connection) await connection.end();
+    }
+});
+
 router.get('/appointments', async (req, res) => {
     const patientId = req.user.patientId; 
     let connection;

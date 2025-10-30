@@ -137,8 +137,9 @@ END$$
 DELIMITER ;
 
 -- login --
-DELIMITER $$
+DROP PROCEDURE IF EXISTS sp_LoginUser; -- Drop the old one
 
+DELIMITER $$
 CREATE PROCEDURE sp_LoginUser(
     IN p_username VARCHAR(50)
 )
@@ -149,9 +150,11 @@ BEGIN
         password_hash, 
         role,
         linked_patient_id,
-        linked_doctor_id
+        linked_doctor_id,
+        status -- It's good to select the status too
     FROM Users 
-    WHERE username = p_username;
+    WHERE username = p_username 
+      AND status = 'active'; -- THIS IS THE NEW SECURITY CHECK
 END$$
 DELIMITER ;
 
@@ -292,27 +295,24 @@ DELIMITER $$
 
 CREATE PROCEDURE sp_CancelAppointment(
     IN p_appointment_id INT,
-    IN p_patient_id INT -- Sent from the user's token
+    IN p_patient_id INT 
 )
 BEGIN
     DECLARE owner_id INT;
-    
-    -- Check who owns the appointment
     SELECT patient_id INTO owner_id 
     FROM Appointments 
     WHERE appointment_id = p_appointment_id;
     
-    -- Security check
+    
     IF owner_id = p_patient_id THEN
-        -- User is the owner, proceed with update
+        
         UPDATE Appointments
         SET status = 'Cancelled'
         WHERE appointment_id = p_appointment_id
-          AND status = 'Scheduled'; -- Only cancel if it's still scheduled
+          AND status = 'Scheduled';
         
         SELECT 'Appointment cancelled successfully.' AS message;
     ELSE
-        -- User is not the owner, signal an error
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Forbidden: You do not own this appointment.';
     END IF;
 END$$
@@ -391,8 +391,9 @@ ALTER TABLE Doctors
 ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE;
 
 
-DELIMITER $$
+DROP PROCEDURE IF EXISTS sp_AdminCreateDoctor; -- Drop the old one
 
+DELIMITER $$
 CREATE PROCEDURE sp_AdminCreateDoctor(
     IN p_username VARCHAR(50),
     IN p_password_hash VARCHAR(255),
@@ -409,8 +410,8 @@ BEGIN
     
     SET new_doctor_id = LAST_INSERT_ID();
     
-    INSERT INTO Users(username, password_hash, role, linked_doctor_id)
-    VALUES(p_username, p_password_hash, 'Doctor', new_doctor_id);
+    INSERT INTO Users(username, password_hash, role, linked_doctor_id, status)
+    VALUES(p_username, p_password_hash, 'Doctor', new_doctor_id, 'active');
     
     COMMIT;
     SELECT new_doctor_id AS doctorId, p_username AS username;
@@ -418,27 +419,51 @@ END$$
 DELIMITER ;
 
 
-DELIMITER $$
+DROP PROCEDURE IF EXISTS sp_AdminDeactivateDoctor; -- Drop the old one
 
+DELIMITER $$
 CREATE PROCEDURE sp_AdminDeactivateDoctor(
     IN p_doctor_id INT
 )
 BEGIN
-   
+
     UPDATE Doctors
     SET is_active = FALSE
     WHERE doctor_id = p_doctor_id;
-    
-    
     UPDATE Users
-    SET password_hash = 'DEACTIVATED' 
+    SET status = 'inactive'
     WHERE linked_doctor_id = p_doctor_id;
     
     SELECT 'Doctor account deactivated.' AS message;
 END$$
 DELIMITER ;
 
+GRANT EXECUTE ON PROCEDURE clinic_db.sp_AdminDeactivateDoctor TO 'api_user'@'localhost';
+FLUSH PRIVILEGES;
 
+
+DELIMITER $$
+CREATE PROCEDURE sp_AdminActivateDoctor(
+    IN p_doctor_id INT
+)
+BEGIN
+    -- 1. Activate the doctor profile
+    UPDATE Doctors
+    SET is_active = TRUE
+    WHERE doctor_id = p_doctor_id;
+    
+    -- 2. Activate the user login account
+    UPDATE Users
+    SET status = 'active'
+    WHERE linked_doctor_id = p_doctor_id;
+    
+    SELECT 'Doctor account activated.' AS message;
+END$$
+DELIMITER ;
+
+
+GRANT EXECUTE ON PROCEDURE clinic_db.sp_AdminActivateDoctor TO 'api_user'@'localhost';
+FLUSH PRIVILEGES;
 
 DELIMITER $$
 CREATE FUNCTION fn_CountAppointmentsToday()
@@ -492,3 +517,129 @@ GRANT UPDATE ON clinic_db.Doctors TO 'api_user'@'localhost';
 FLUSH PRIVILEGES;
 
 select * from Users;
+use clinic_db;
+DELIMITER $$
+CREATE TRIGGER trg_check_appointment_date
+BEFORE INSERT ON Appointments
+FOR EACH ROW
+BEGIN
+    IF NEW.appointment_time < NOW() THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Error: Cannot book an appointment in the past.';
+    END IF;
+END$$
+DELIMITER ;
+
+select * from Doctors;
+
+select * from Users;
+
+DELIMITER $$
+CREATE PROCEDURE sp_AdminDeleteSpecialty(
+    IN p_specialty_id INT
+)
+BEGIN
+    DECLARE doctor_count INT;
+    SELECT COUNT(*) 
+    INTO doctor_count
+    FROM Doctors
+    WHERE specialty_id = p_specialty_id;
+    IF doctor_count > 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Error: Cannot delete specialty. It is still assigned to one or more doctors.';
+    ELSE
+        -- 3. If it's not in use, delete it
+        DELETE FROM Specialties 
+        WHERE specialty_id = p_specialty_id;
+        
+        SELECT 'Specialty deleted successfully.' AS message;
+    END IF;
+END$$
+DELIMITER ;
+
+GRANT EXECUTE ON PROCEDURE clinic_db.sp_AdminDeleteSpecialty TO 'api_user'@'localhost';
+FLUSH PRIVILEGES;
+
+select * from Specialties;
+
+ALTER TABLE Users
+ADD COLUMN status ENUM('active', 'inactive') NOT NULL DEFAULT 'active';
+
+select * from Users;
+
+
+
+
+CREATE TABLE patient_audit_log (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    patient_id INT,
+    change_type VARCHAR(50), 
+    old_value VARCHAR(255),
+    new_value VARCHAR(255),
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_id) REFERENCES Patients(patient_id)
+);
+
+DELIMITER $$
+CREATE PROCEDURE sp_UpdatePatientProfile(
+    IN p_patient_id INT,
+    IN p_first_name VARCHAR(50),
+    IN p_last_name VARCHAR(50),
+    IN p_email VARCHAR(100),
+    IN p_phone VARCHAR(20),
+    IN p_dob DATE
+)
+BEGIN
+    DECLARE old_email VARCHAR(100);
+    DECLARE old_phone VARCHAR(20);
+    
+    SELECT email, phone 
+    INTO old_email, old_phone
+    FROM Patients 
+    WHERE patient_id = p_patient_id;
+
+    START TRANSACTION;
+    
+    UPDATE Patients
+    SET 
+        first_name = p_first_name,
+        last_name = p_last_name,
+        email = p_email,
+        phone = p_phone,
+        dob = p_dob
+    WHERE 
+        patient_id = p_patient_id;
+    IF old_email <> p_email THEN
+        INSERT INTO patient_audit_log(patient_id, change_type, old_value, new_value)
+        VALUES(p_patient_id, 'email', old_email, p_email);
+    END IF;
+    
+    IF old_phone <> p_phone THEN
+        INSERT INTO patient_audit_log(patient_id, change_type, old_value, new_value)
+        VALUES(p_patient_id, 'phone', old_phone, p_phone);
+    END IF;
+    COMMIT;
+    
+    SELECT * FROM v_PatientProfile 
+    WHERE patient_id = p_patient_id;
+END$$
+DELIMITER ;
+
+GRANT EXECUTE ON PROCEDURE clinic_db.sp_UpdatePatientProfile TO 'api_user'@'localhost';
+FLUSH PRIVILEGES;
+
+select * from patient_audit_log;
+
+DELIMITER $$
+CREATE EVENT evt_clear_old_audit_logs
+ON SCHEDULE EVERY 1 MONTH
+STARTS CURRENT_TIMESTAMP + INTERVAL 1 MONTH 
+DO
+BEGIN
+    DELETE FROM patient_audit_log
+    WHERE changed_at < NOW() - INTERVAL 1 YEAR; 
+END$$
+
+DELIMITER ;
+
+SHOW EVENTS FROM clinic_db;

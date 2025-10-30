@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api';
+import '../styles/adminDashboard.css';
+import Modal from '../components/Modal';
 
 function AdminDashboard() {
   const [stats, setStats] = useState({ todayAppointments: 0, newPatients: 0 });
@@ -7,8 +9,6 @@ function AdminDashboard() {
   const [specialties, setSpecialties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-
   const [docUsername, setDocUsername] = useState('');
   const [docPassword, setDocPassword] = useState('');
   const [docFirstName, setDocFirstName] = useState('');
@@ -16,16 +16,13 @@ function AdminDashboard() {
   const [docSpecialty, setDocSpecialty] = useState('');
   const [docError, setDocError] = useState('');
   const [docSuccess, setDocSuccess] = useState('');
-
- 
   const [newSpecialtyName, setNewSpecialtyName] = useState('');
+  const [isSpecialtyModalOpen, setIsSpecialtyModalOpen] = useState(false);
 
 
-
-  const fetchDoctors = useCallback(async () => {
+  const fetchDoctors = useCallback(async () => { 
     try {
-
-      const response = await apiClient.get('/api/admin/doctors'); 
+      const response = await apiClient.get('/api/admin/doctors');
       setDoctors(response.data);
     } catch (err) {
       console.error('Error fetching doctors:', err);
@@ -43,7 +40,6 @@ function AdminDashboard() {
     }
   }, []);
 
-
   useEffect(() => {
     const fetchAllData = async () => {
       setLoading(true);
@@ -51,9 +47,8 @@ function AdminDashboard() {
       try {
         const statsRes = await apiClient.get('/api/admin/dashboard');
         setStats(statsRes.data);
-        
         await fetchSpecialties();
-
+        await fetchDoctors();
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
         setError('Failed to load dashboard.');
@@ -62,9 +57,8 @@ function AdminDashboard() {
       }
     };
     fetchAllData();
-  }, [fetchSpecialties]); 
+  }, [fetchSpecialties, fetchDoctors]);
 
- 
   const handleAddDoctor = async (e) => {
     e.preventDefault();
     setDocError('');
@@ -82,13 +76,12 @@ function AdminDashboard() {
         specialtyId: docSpecialty,
       });
       setDocSuccess(`Doctor ${response.data.username} created!`);
-   
       setDocUsername('');
       setDocPassword('');
       setDocFirstName('');
       setDocLastName('');
       setDocSpecialty('');
-      
+      await fetchDoctors();
     } catch (err) {
       console.error('Error creating doctor:', err);
       setDocError(err.response?.data?.error || 'Failed to create doctor.');
@@ -101,93 +94,199 @@ function AdminDashboard() {
     try {
       const response = await apiClient.post('/api/admin/specialties', { name: newSpecialtyName });
       setSpecialties([...specialties, response.data]); 
-      setNewSpecialtyName(''); 
+      setNewSpecialtyName('');
     } catch (err) {
       console.error('Error adding specialty:', err);
       alert(err.response?.data?.error || 'Failed to add specialty.');
     }
   };
 
+  const handleDeleteSpecialty = async (specialtyId) => {
+    if (!window.confirm('Are you sure you want to delete this specialty? This cannot be undone.')) {
+      return;
+    }
+    try {
+      await apiClient.delete(`/api/admin/specialties/${specialtyId}`);
+      setSpecialties(specialties.filter(s => s.specialty_id !== specialtyId));
+    } catch (err) {
+      console.error('Error deleting specialty:', err);
+      alert(err.response?.data?.error || 'Failed to delete specialty.');
+    }
+  };
+  
+
+  const handleToggleDoctorStatus = async (doctor) => {
+    const { doctor_id, is_active } = doctor;
+    const action = is_active ? 'deactivate' : 'activate';
+    
+    if (!window.confirm(`Are you sure you want to ${action} this doctor?`)) {
+      return;
+    }
+
+    try {
+      if (is_active) {
+      
+        await apiClient.delete(`/api/admin/doctors/${doctor_id}`);
+      } else {
  
+        await apiClient.put(`/api/admin/doctors/${doctor_id}/activate`);
+      }
+      await fetchDoctors(); 
+    } catch (err) {
+      console.error(`Error ${action}ing doctor:`, err);
+      alert(err.response?.data?.error || `Failed to ${action} doctor.`);
+    }
+  };
+
+
   if (loading) return <h1>Loading Admin Dashboard...</h1>;
   if (error) return <h1 className="error-message">{error}</h1>;
 
   return (
-    <div className="dashboard-container">
-      
-      {/* --- Column 1: Stats & Doctor Management --- */}
-      <div className="dashboard-column-2">
-        {/* Stats Cards */}
-        <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
-          <div className="card" style={{ flex: 1, textAlign: 'center' }}>
-            <h2>Today's Appointments</h2>
-            <h1 style={{ fontSize: '3rem', margin: 0 }}>{stats.todayAppointments}</h1>
+    <>
+      <div className="dashboard-container">
+        
+        {/* --- Column 1: Side Content --- */}
+        <div className="dashboard-column-side">
+          {/* Stats Cards */}
+          <div className="stats-container">
+            <div className="stats-card">
+              <h2>Today's Appointments</h2>
+              <p className="stat-number">{stats.todayAppointments}</p>
+            </div>
+            <div className="stats-card">
+              <h2>New Patients</h2>
+              <p className="stat-number">{stats.newPatients}</p>
+            </div>
           </div>
-          <div className="card" style={{ flex: 1, textAlign: 'center' }}>
-            <h2>New Patients (This Month)</h2>
-            <h1 style={{ fontSize: '3rem', margin: 0 }}>{stats.newPatients}</h1>
+          
+          <div className="card">
+            <h2>Admin Tools</h2>
+            <p>Manage specialties and other clinic settings.</p>
+            <button 
+              onClick={() => setIsSpecialtyModalOpen(true)}
+              style={{width: '100%'}}
+            >
+              Manage Specialties
+            </button>
+          </div>
+
+          {/* Add Doctor Form */}
+          <div className="card">
+            <h2>Create New Doctor Account</h2>
+            <form onSubmit={handleAddDoctor}>
+                {/* ... (add doctor form) ... */}
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>First Name:</label>
+                    <input type="text" value={docFirstName} onChange={(e) => setDocFirstName(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label>Last Name:</label>
+                    <input type="text" value={docLastName} onChange={(e) => setDocLastName(e.target.value)} />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Username:</label>
+                    <input type="text" value={docUsername} onChange={(e) => setDocUsername(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label>Password:</label>
+                    <input type="password" value={docPassword} onChange={(e) => setDocPassword(e.target.value)} />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Specialty:</label>
+                  <select value={docSpecialty} onChange={(e) => setDocSpecialty(e.target.value)}>
+                    <option value="">-- Select Specialty --</option>
+                    {specialties.map(s => (
+                      <option key={s.specialty_id} value={s.specialty_id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <button type="submit">Create Doctor</button>
+                {docSuccess && <p className="success-message">{docSuccess}</p>}
+                {docError && <p className="error-message">{docError}</p>}
+            </form>
           </div>
         </div>
 
-        {/* Doctor Management (Add) */}
-        <div className="card">
-          <h2>Create New Doctor Account</h2>
-          <form onSubmit={handleAddDoctor}>
-            <div style={{ display: 'flex', gap: '15px' }}>
-              <div style={{ flex: 1 }}>
-                <label>First Name:</label>
-                <input type="text" value={docFirstName} onChange={(e) => setDocFirstName(e.target.value)} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label>Last Name:</label>
-                <input type="text" value={docLastName} onChange={(e) => setDocLastName(e.target.value)} />
-              </div>
+        {/* --- Column 2: Main Content (Doctors) --- */}
+        <div className="dashboard-column-main">
+          {/* Doctor List Table */}
+          <div className="card">
+            <h2>Manage Doctors</h2>
+            <div className="table-container"> 
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Specialty</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {doctors.map((doc) => (
+                    <tr key={doc.doctor_id}>
+                      <td>Dr. {doc.first_name} {doc.last_name}</td>
+                      <td>{doc.specialty}</td>
+                      <td>
+                        <span className={`status-badge ${doc.is_Aactive ? 'status-Active' : 'status-Inactive'}`}>
+                          {doc.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td>
+                        {/* --- 2. UPDATED: Conditional Button --- */}
+                        {doc.is_active ? (
+                          <button 
+                            className="action-button" // Red "Deactivate"
+                            onClick={() => handleToggleDoctorStatus(doc)}
+                          >
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button 
+                            className="activate-btn" // Green "Activate"
+                            onClick={() => handleToggleDoctorStatus(doc)}
+                          >
+                            Activate
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div style={{ display: 'flex', gap: '15px', marginTop: '15px' }}>
-              <div style={{ flex: 1 }}>
-                <label>Username:</label>
-                <input type="text" value={docUsername} onChange={(e) => setDocUsername(e.target.value)} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label>Password:</label>
-                <input type="password" value={docPassword} onChange={(e) => setDocPassword(e.target.value)} />
-              </div>
-            </div>
-            <div style={{ marginTop: '15px' }}>
-              <label>Specialty:</label>
-              <select value={docSpecialty} onChange={(e) => setDocSpecialty(e.target.value)}>
-                <option value="">-- Select Specialty --</option>
-                {specialties.map(s => (
-                  <option key={s.specialty_id} value={s.specialty_id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-            <button type="submit" style={{ marginTop: '15px' }}>Create Doctor</button>
-            {docSuccess && <p className="success-message">{docSuccess}</p>}
-            {docError && <p className="error-message">{docError}</p>}
-          </form>
+          </div>
         </div>
       </div>
 
-      {/* --- Column 2: Specialty Management --- */}
-      <div className="dashboard-column-1">
-        <div className="card">
-          <h2>Manage Specialties</h2>
-          <form onSubmit={handleAddSpecialty} style={{ display: 'flex', gap: '10px' }}>
-            <input 
-              type="text" 
-              placeholder="New specialty name" 
-              value={newSpecialtyName}
-              onChange={(e) => setNewSpecialtyName(e.target.value)}
-              style={{ flex: 1 }}
-            />
-            <button type="submit">Add</button>
-          </form>
-          <table style={{ marginTop: '20px' }}>
+      {/* --- Specialty Modal --- */}
+      <Modal 
+        isOpen={isSpecialtyModalOpen} 
+        onClose={() => setIsSpecialtyModalOpen(false)} 
+        title="Manage Specialties"
+      >
+        <form onSubmit={handleAddSpecialty} className="form-flex-container">
+          <input 
+            type="text" 
+            placeholder="New specialty name" 
+            value={newSpecialtyName}
+            onChange={(e) => setNewSpecialtyName(e.target.value)}
+          />
+          <button type="submit">Add</button>
+        </form>
+        
+        <div className="table-container" style={{ marginTop: '20px' }}> 
+          <table>
             <thead>
               <tr>
                 <th>ID</th>
                 <th>Name</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -195,14 +294,21 @@ function AdminDashboard() {
                 <tr key={s.specialty_id}>
                   <td>{s.specialty_id}</td>
                   <td>{s.name}</td>
-                  {/* Add delete/edit buttons here */}
+                  <td>
+                    <button 
+                      className="delete-btn" // Small red button
+                      onClick={() => handleDeleteSpecialty(s.specialty_id)}
+                    >
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
+      </Modal>
+    </>
   );
 }
 

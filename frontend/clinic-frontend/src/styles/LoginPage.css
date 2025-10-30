@@ -11,7 +11,8 @@ body, html {
   display: flex;
   width: 100vw;
   height: 100vh;
-  overflow: hidden; 
+  /* Allow scrolling when content is taller than viewport (prevents clipping of long forms) */
+  overflow: auto;
 }
 
 .login-page__decorative-side {
@@ -56,6 +57,8 @@ body, html {
   background-color: #f4f7f6;
   padding: 2rem;
   box-sizing: border-box;
+  /* Allow the inner area to scroll if the form is taller than available space */
+  overflow-y: auto;
 }
 
 .login-form {
@@ -66,6 +69,10 @@ body, html {
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
   box-sizing: border-box; 
+  /* Prevent the box from growing beyond the viewport and allow internal scrolling */
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .login-form h1 {
@@ -147,6 +154,8 @@ body, html {
   .login-container {
     flex: 1.5; 
     padding: 1rem;
+    /* ensure scrollability on small screens */
+    overflow-y: auto;
   }
 
   .login-form {
@@ -158,4 +167,66 @@ body, html {
     font-size: 1.6rem;
     margin-bottom: 1.5rem;
   }
+}
+
+
+.toggle-link {
+  text-align: center;
+  margin-top: 1.5rem;
+  color: #555;
+  cursor: pointer;
+}
+.toggle-link strong {
+  color: #007bff;
+}
+
+
+.register-form {
+  max-width: 500px;
+}
+
+
+.form-row {
+  display: flex;
+  gap: 15px;
+}
+.form-group {
+  flex: 1; 
+  margin-bottom: 1rem;
+}
+
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #555;
+}
+
+
+.form-group input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-size: 1rem;
+}
+
+
+.register-form hr {
+  border: none;
+  border-top: 1px solid #eee;
+  margin: 1.5rem 0;
+}
+
+.login-success {
+  color: #28a745; 
+  text-align: center;
+  margin-top: 1rem;
+  font-weight: 600;
+  border: 1px solid #28a745;
+  padding: 10px;
+  border-radius: 4px;
+  background-color: #f0fff4;
 }

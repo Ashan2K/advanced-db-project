@@ -60,6 +60,28 @@ router.post('/specialties', async (req, res) => {
     }
 });
 
+router.delete('/specialties/:id', async (req, res) => {
+    const { id: specialtyId } = req.params;
+    let connection;
+
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        const [results] = await connection.execute(
+            'CALL sp_AdminDeleteSpecialty(?)', 
+            [specialtyId]
+        );
+        res.status(200).json(results[0][0]);
+    } catch (error) {
+        console.error('Error deleting specialty:', error);
+        
+        if (error.code === 'ER_SIGNAL_EXCEPTION') {
+            return res.status(409).json({ error: error.message }); 
+        }
+        res.status(500).json({ error: 'Server error' });
+    } finally {
+        if (connection) await connection.end();
+    }
+});
 
 router.post('/doctors', async (req, res) => {
     const { username, password, firstName, lastName, specialtyId } = req.body;
@@ -104,6 +126,25 @@ router.delete('/doctors/:id', async (req, res) => {
         res.status(200).json(results[0][0]);
     } catch (error) {
         console.error('Error deactivating doctor:', error);
+        res.status(500).json({ error: 'Server error' });
+    } finally {
+        if (connection) await connection.end();
+    }
+});
+
+router.put('/doctors/:id/activate', async (req, res) => {
+    const { id: doctorId } = req.params;
+    let connection;
+
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        const [results] = await connection.execute(
+            'CALL sp_AdminActivateDoctor(?)', 
+            [doctorId]
+        );
+        res.status(200).json(results[0][0]);
+    } catch (error) {
+        console.error('Error activating doctor:', error);
         res.status(500).json({ error: 'Server error' });
     } finally {
         if (connection) await connection.end();
