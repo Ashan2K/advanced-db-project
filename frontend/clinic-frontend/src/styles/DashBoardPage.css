@@ -1,4 +1,4 @@
-/* === Global Dashboard Styles === */
+
 :root {
   --primary-color: #007bff;
   --primary-dark: #0056b3;
@@ -24,10 +24,10 @@ body {
   color: var(--text-light);
 }
 
-/* === Dashboard Layout === */
+
 .dashboard-container {
   display: flex;
-  flex-wrap: wrap; /* Allows stacking on mobile */
+  flex-wrap: wrap; 
   gap: 2rem;
   width: 95%;
   max-width: 1400px;
@@ -35,22 +35,22 @@ body {
 }
 
 .dashboard-column-1 {
-  flex: 1; /* Takes 1 part of the space */
-  min-width: 320px; /* Ensures it doesn't get too small */
+  flex: 1; 
+  min-width: 320px; 
   display: flex;
   flex-direction: column;
   gap: 2rem;
 }
 
 .dashboard-column-2 {
-  flex: 2; /* Takes 2 parts, making it wider for the table */
+  flex: 2; 
   min-width: 320px;
   display: flex;
   flex-direction: column;
   gap: 2rem;
 }
 
-/* === Card Styling === */
+
 .card {
   background-color: var(--card-bg);
   border-radius: 12px;
@@ -72,7 +72,7 @@ body {
   font-size: 1.6rem;
 }
 
-/* --- Profile Card (Column 1) --- */
+
 .dashboard-column-1 .card:first-child {
   background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
   color: #f0f0f0;
@@ -82,7 +82,7 @@ body {
   color: #ffffff;
 }
 
-/* User icon for Profile */
+
 .dashboard-column-1 .card:first-child h2::before {
   content: '';
   display: inline-block;
@@ -99,8 +99,7 @@ body {
   margin: 0.5rem 0;
 }
 
-/* --- Booking Card (Column 1) --- */
-/* Book icon for Booking Form */
+
 .dashboard-column-1 .card:nth-child(2) h2::before {
   content: '';
   display: inline-block;
@@ -113,8 +112,7 @@ body {
   background-size: contain;
 }
 
-/* --- Appointments List (Column 2) --- */
-/* List icon for Appointments Table */
+
 .dashboard-column-2 .card h2::before {
   content: '';
   display: inline-block;
@@ -127,7 +125,7 @@ body {
   background-size: contain;
 }
 
-/* === Form Styling === */
+
 form {
   display: flex;
   flex-direction: column;
@@ -183,13 +181,13 @@ form button[type="submit"]:hover {
 
 /* === Table Styling === */
 .dashboard-column-2 .card {
-  overflow-x: auto; /* Allows table to scroll horizontally on small screens */
+  overflow-x: auto; 
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 600px; /* Forces horizontal scroll if container is too small */
+  min-width: 600px; 
 }
 
 thead tr {
@@ -226,7 +224,7 @@ td {
   color: var(--text-light);
 }
 
-/* === Status Badges === */
+
 .status {
   padding: 0.35rem 0.75rem;
   border-radius: 20px;
@@ -238,19 +236,19 @@ td {
   gap: 0.4rem;
 }
 
-/* Clock icon */
+
 .status-Scheduled::before {
   content: '🕒';
   font-size: 0.9rem;
 }
 
-/* Check icon (add this class if you have a 'Completed' status) */
+
 .status-Completed::before {
   content: '✓';
   font-weight: bold;
 }
 
-/* 'X' icon */
+
 .status-Cancelled::before {
   content: '✕';
   font-weight: bold;
@@ -273,7 +271,7 @@ td {
 }
 
 
-/* === Buttons & Messages === */
+
 .cancel-btn {
   background-color: #fff;
   color: var(--error-color);
@@ -317,7 +315,7 @@ td {
   margin-top: 1rem;
 }
 
-/* === Responsive (Mobile) Design === */
+
 @media (max-width: 992px) {
   .dashboard-container {
     flex-direction: column;
@@ -326,6 +324,23 @@ td {
 
   .dashboard-column-1,
   .dashboard-column-2 {
-    flex: 1; /* Reset flex-basis so they stack */
+    flex: 1; 
   }
+}
+
+.notes-toggle-btn {
+  background-color: #17a2b8;
+  font-size: 0.85rem;
+  padding: 8px 12px;
+}
+.notes-toggle-btn:hover {
+  background-color: #138496;
+}
+
+.record-notes-row td {
+  background-color: #fdfdfd;
+  padding: 15px 20px !important;
+  border-bottom: 2px solid #17a2b8;
+  font-size: 0.95rem;
+  color: #333;
 }

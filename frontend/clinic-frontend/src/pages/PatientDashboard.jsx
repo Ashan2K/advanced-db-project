@@ -16,10 +16,13 @@ function PatientDashboard() {
   const [bookError, setBookError] = useState('');
   const [bookSuccess, setBookSuccess] = useState('');
 
-  // --- 1. NEW STATE FOR EDITING ---
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({}); // To hold edit form data
+  const [formData, setFormData] = useState({});
   const [profileError, setProfileError] = useState('');
+
+  // --- 1. NEW STATE: For medical records ---
+  const [medicalRecords, setMedicalRecords] = useState([]);
+  const [expandedRecordId, setExpandedRecordId] = useState(null); // For accordion
 
   const fetchAppointments = useCallback(async () => {
     try {
@@ -31,6 +34,7 @@ function PatientDashboard() {
     }
   }, []);
 
+  // --- 2. UPDATED: useEffect to fetch records ---
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
@@ -39,10 +43,14 @@ function PatientDashboard() {
       try {
         const profileResponse = await apiClient.get('/api/me/profile');
         setProfile(profileResponse.data);
-        setFormData(profileResponse.data); // <-- Pre-fill form data
+        setFormData(profileResponse.data);
 
         const doctorsResponse = await apiClient.get('/api/me/doctors');
         setDoctors(doctorsResponse.data);
+
+        // --- Fetch the new medical records ---
+        const recordsResponse = await apiClient.get('/api/me/medicalrecords');
+        setMedicalRecords(recordsResponse.data);
 
         await fetchAppointments();
       } catch (err) {
@@ -55,8 +63,25 @@ function PatientDashboard() {
     fetchData();
   }, [user, fetchAppointments]);
 
+  // --- 3. UPDATED: handleProfileUpdate to re-fetch logs ---
+  // (We'll keep this in case you re-add the audit log)
+  const handleProfileUpdate = async (e) => {
+    e.preventDefault();
+    setProfileError('');
+    try {
+      const response = await apiClient.put('/api/me/profile', formData);
+      setProfile(response.data); 
+      setFormData(response.data);
+      setIsEditing(false);
+      // You could re-fetch an audit log here if you add it back
+    } catch (err) {
+      console.error('Profile update error:', err);
+      setProfileError(err.response?.data?.error || 'Failed to save profile.');
+    }
+  };
+
+  // ... (handleBookAppointment, handleCancelAppointment, etc. are unchanged) ...
   const handleBookAppointment = async (e) => {
-    // ... (this function is unchanged)
     e.preventDefault();
     setBookError('');
     setBookSuccess('');
@@ -78,9 +103,7 @@ function PatientDashboard() {
       setBookError(err.response?.data?.error || 'Failed to book appointment.');
     }
   };
-
   const handleCancelAppointment = async (appointmentId) => {
-    // ... (this function is unchanged)
     if (!window.confirm('Are you sure you want to cancel this appointment?')) {
       return;
     }
@@ -92,64 +115,42 @@ function PatientDashboard() {
       alert(err.response?.data?.error || 'Failed to cancel appointment.');
     }
   };
-  
-  // --- 2. NEW: HANDLERS FOR PROFILE EDITING ---
-
-  // Update form state as user types
   const handleFormChange = (e) => {
-    // Handle 'date' input type which needs YYYY-MM-DD
     const value = e.target.type === 'date' 
       ? e.target.value.split('T')[0] 
       : e.target.value;
-      
-    setFormData({
-      ...formData,
-      [e.target.name]: value,
-    });
+    setFormData({ ...formData, [e.target.name]: value });
   };
-
-  // Handle the "Save" button click
-  const handleProfileUpdate = async (e) => {
-    e.preventDefault();
-    setProfileError('');
-    try {
-      // Send the updated data to the backend
-      const response = await apiClient.put('/api/me/profile', formData);
-      
-      // Update the profile state with the new data from the server
-      setProfile(response.data); 
-      setFormData(response.data); // Re-sync form data
-      setIsEditing(false); // Close the edit form
-
-    } catch (err) {
-      console.error('Profile update error:', err);
-      setProfileError(err.response?.data?.error || 'Failed to save profile.');
-    }
-  };
-
-  // Handle the "Cancel" button click
   const handleEditCancel = () => {
-    setFormData(profile); // Reset form data back to original
+    setFormData(profile);
     setIsEditing(false);
     setProfileError('');
   };
 
-  // --- Render logic ---
+  // --- 4. NEW: Handler to toggle notes visibility ---
+  const toggleRecordNotes = (recordId) => {
+    if (expandedRecordId === recordId) {
+      setExpandedRecordId(null); // Close it
+    } else {
+      setExpandedRecordId(recordId); // Open it
+    }
+  };
+
   if (loading) return <h1>Loading your dashboard...</h1>;
   if (error) return <h1 className="error-message">{error}</h1>;
 
-  return (
+ return (
     <div className="dashboard-container">
       
+      {/* --- Column 1: Profile & Booking --- */}
       <div className="dashboard-column-1">
         
-        {/* --- 3. UPDATED PROFILE CARD --- */}
+        {/* --- Profile Card --- */}
         <div className="card">
-          {/* This is a ternary operator: (condition ? if_true : if_false) */}
           {isEditing ? (
-            // --- EDIT MODE ---
             <form onSubmit={handleProfileUpdate}>
               <h2>Edit Your Profile</h2>
+              {/* ... (edit form) ... */}
               <div className="form-group">
                 <label>First Name:</label>
                 <input type="text" name="first_name" value={formData.first_name || ''} onChange={handleFormChange} />
@@ -168,7 +169,6 @@ function PatientDashboard() {
               </div>
               <div className="form-group">
                 <label>Date of Birth:</label>
-                {/* Format date for input[type=date] */}
                 <input type="date" name="dob" value={formData.dob ? formData.dob.split('T')[0] : ''} onChange={handleFormChange} />
               </div>
               {profileError && <p className="error-message">{profileError}</p>}
@@ -178,7 +178,6 @@ function PatientDashboard() {
               </div>
             </form>
           ) : (
-            // --- VIEW MODE ---
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2>Welcome, {profile?.first_name}!</h2>
@@ -191,7 +190,7 @@ function PatientDashboard() {
           )}
         </div>
 
-        {/* --- Booking Form Card (Unchanged) --- */}
+        {/* --- Booking Form Card --- */}
         <div className="card">
           <h2>Book a New Appointment</h2>
           <form onSubmit={handleBookAppointment}>
@@ -225,13 +224,17 @@ function PatientDashboard() {
             {bookError && <p className="error-message">{bookError}</p>}
           </form>
         </div>
+
+        {/* --- MEDICAL HISTORY CARD IS NOW GONE FROM THIS COLUMN ---
+        */}
+        
       </div>
 
-      {/* --- Appointments List Column (Unchanged) --- */}
+      {/* --- Column 2: Appointments & Medical History --- */}
       <div className="dashboard-column-2">
+        {/* --- Appointments List Card --- */}
         <div className="card">
           <h2>My Appointments</h2>
-          {/* ... (table) ... */}
           {appointments.length === 0 ? (
             <p>You have no appointments scheduled.</p>
           ) : (
@@ -270,6 +273,54 @@ function PatientDashboard() {
               </tbody>
             </table>
           )}
+        </div>
+
+        {/* --- MEDICAL HISTORY CARD MOVED HERE --- */}
+        <div className="card">
+          <h2>My Medical History</h2>
+          <div className="table-container" style={{ maxHeight: '400px' }}>
+            {medicalRecords.length === 0 ? (
+              <p>No medical records found.</p>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Doctor</th>
+                    <th>Diagnosis</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {medicalRecords.map((record) => (
+                    <React.Fragment key={record.record_id}>
+                      <tr>
+                        <td>{new Date(record.visit_date).toLocaleDateString()}</td>
+                        <td>{record.doctor_name}</td>
+                        <td>{record.diagnosis}</td>
+                        <td>
+                          <button 
+                            className="notes-toggle-btn"
+                            onClick={() => toggleRecordNotes(record.record_id)}
+                          >
+                            {expandedRecordId === record.record_id ? 'Hide' : 'View'}
+                          </button>
+                        </td>
+                      </tr>
+                      {/* This row appears conditionally */}
+                      {expandedRecordId === record.record_id && (
+                        <tr className="record-notes-row">
+                          <td colSpan="4">
+                            <strong>Notes:</strong> {record.notes || 'No notes provided.'}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       </div>
     </div>

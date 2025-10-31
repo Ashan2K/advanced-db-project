@@ -57,12 +57,12 @@ router.post('/records', async (req, res) => {
     if (!patientId || !visitDate) {
         return res.status(400).json({ error: 'patientId and visitDate are required.' });
     }
-
+    const formatedVisitDate = new Date(visitDate).toISOString().split('T')[0];
     let connection;
     try {
         connection = await mysql.createConnection(dbConfig);
         const sql = 'CALL sp_CreateMedicalRecord(?, ?, ?, ?, ?)';
-        const params = [doctorId, patientId, visitDate, diagnosis, notes];
+        const params = [doctorId, patientId, formatedVisitDate, diagnosis, notes];
         
         const [results] = await connection.execute(sql, params);
         res.status(201).json(results[0][0]); 

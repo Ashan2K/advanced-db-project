@@ -139,9 +139,9 @@ router.post('/book-appointment', async (req, res) => {
     }
 });
 
-// PUT /api/me/appointments/:id/cancel
+
 router.put('/appointments/:id/cancel', async (req, res) => {
-    const patientId = req.user.patientId; // Get ID from token
+    const patientId = req.user.patientId; 
     const { id: appointmentId } = req.params; 
     let connection;
     try {
@@ -156,6 +156,25 @@ router.put('/appointments/:id/cancel', async (req, res) => {
         if (error.code === 'ER_SIGNAL_EXCEPTION') {
             return res.status(403).json({ error: error.message });
         }
+        res.status(500).json({ error: 'Server error' });
+    } finally {
+        if (connection) await connection.end();
+    }
+});
+
+router.get('/medicalrecords', async (req, res) => {
+    const patientId = req.user.patientId; 
+    let connection;
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        
+        const [rows] = await connection.query(
+            'SELECT * FROM v_PatientMedicalRecords WHERE patient_id = ? ORDER BY visit_date DESC', 
+            [patientId]
+        );
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error('Error fetching medical records:', error);
         res.status(500).json({ error: 'Server error' });
     } finally {
         if (connection) await connection.end();
