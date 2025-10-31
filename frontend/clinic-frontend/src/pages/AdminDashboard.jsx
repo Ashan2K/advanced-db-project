@@ -11,7 +11,7 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // --- 1. NEW STATE FOR PATIENTS ---
+
   const [patients, setPatients] = useState([]);
 
   const [docUsername, setDocUsername] = useState('');
@@ -25,7 +25,6 @@ function AdminDashboard() {
   const [newSpecialtyName, setNewSpecialtyName] = useState('');
   const [isSpecialtyModalOpen, setIsSpecialtyModalOpen] = useState(false);
 
-  // --- 2. NEW FUNCTION: fetchPatients ---
   const fetchPatients = useCallback(async () => {
     try {
       const response = await apiClient.get('/api/admin/patients');
@@ -56,7 +55,7 @@ function AdminDashboard() {
     }
   }, []);
 
-  // --- 3. UPDATED: useEffect ---
+ 
   useEffect(() => {
     const fetchAllData = async () => {
       setLoading(true);
@@ -66,7 +65,7 @@ function AdminDashboard() {
         setStats(statsRes.data);
         await fetchSpecialties();
         await fetchDoctors();
-        await fetchPatients(); // <-- Add this
+        await fetchPatients(); 
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
         setError('Failed to load dashboard.');
@@ -75,15 +74,15 @@ function AdminDashboard() {
       }
     };
     fetchAllData();
-  }, [fetchSpecialties, fetchDoctors, fetchPatients]); // <-- Add this
+  }, [fetchSpecialties, fetchDoctors, fetchPatients]); 
 
-  // ... (handlers for Doctor and Specialty are unchanged) ...
+ 
   const handleAddDoctor = async (e) => { e.preventDefault(); setDocError(''); setDocSuccess(''); if (!docUsername || !docPassword || !docFirstName || !docLastName || !docSpecialty) { setDocError('All fields are required.'); return; } try { const response = await apiClient.post('/api/admin/doctors', { username: docUsername, password: docPassword, firstName: docFirstName, lastName: docLastName, specialtyId: docSpecialty, }); setDocSuccess(`Doctor ${response.data.username} created!`); setDocUsername(''); setDocPassword(''); setDocFirstName(''); setDocLastName(''); setDocSpecialty(''); await fetchDoctors(); } catch (err) { console.error('Error creating doctor:', err); setDocError(err.response?.data?.error || 'Failed to create doctor.'); } };
   const handleAddSpecialty = async (e) => { e.preventDefault(); if (!newSpecialtyName) return; try { const response = await apiClient.post('/api/admin/specialties', { name: newSpecialtyName }); setSpecialties([...specialties, response.data]); setNewSpecialtyName(''); } catch (err) { console.error('Error adding specialty:', err); alert(err.response?.data?.error || 'Failed to add specialty.'); } };
   const handleDeleteSpecialty = async (specialtyId) => { if (!window.confirm('Are you sure you want to delete this specialty? This cannot be undone.')) { return; } try { await apiClient.delete(`/api/admin/specialties/${specialtyId}`); setSpecialties(specialties.filter(s => s.specialty_id !== specialtyId)); } catch (err) { console.error('Error deleting specialty:', err); alert(err.response?.data?.error || 'Failed to delete specialty.'); } };
   const handleToggleDoctorStatus = async (doctor) => { const { doctor_id, is_active } = doctor; const action = is_active ? 'deactivate' : 'activate'; if (!window.confirm(`Are you sure you want to ${action} this doctor?`)) { return; } try { if (is_active) { await apiClient.delete(`/api/admin/doctors/${doctor_id}`); } else { await apiClient.put(`/api/admin/doctors/${doctor_id}/activate`); } await fetchDoctors(); } catch (err) { console.error(`Error ${action}ing doctor:`, err); alert(err.response?.data?.error || `Failed to ${action} doctor.`); } };
 
-  // --- 4. NEW: Handler for Patient Status Toggle ---
+ 
   const handleTogglePatientStatus = async (patient) => {
     const { patient_id, status } = patient;
     const action = (status === 'active') ? 'deactivate' : 'activate';
@@ -98,7 +97,7 @@ function AdminDashboard() {
       } else {
         await apiClient.put(`/api/admin/patients/${patient_id}/activate`);
       }
-      await fetchPatients(); // Refresh the patient list
+      await fetchPatients(); 
     } catch (err) {
       console.error(`Error ${action}ing patient:`, err);
       alert(err.response?.data?.error || `Failed to ${action} patient.`);

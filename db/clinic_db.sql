@@ -765,3 +765,17 @@ GRANT SELECT ON clinic_db.v_PatientList TO 'api_user'@'localhost';
 GRANT EXECUTE ON PROCEDURE clinic_db.sp_AdminDeactivatePatient TO 'api_user'@'localhost';
 GRANT EXECUTE ON PROCEDURE clinic_db.sp_AdminActivatePatient TO 'api_user'@'localhost';
 FLUSH PRIVILEGES;
+
+show tables;
+
+CREATE VIEW v_DoctorList AS
+SELECT 
+    d.doctor_id, 
+    d.first_name, 
+    d.last_name, 
+    d.is_active, 
+    s.name AS specialty
+FROM 
+    Doctors d
+JOIN 
+    Specialties s ON d.specialty_id = s.specialty_id;
