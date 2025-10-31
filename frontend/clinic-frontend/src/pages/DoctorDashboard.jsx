@@ -4,8 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 
 function DoctorDashboard() {
-  // --- 1. STATE UPDATED ---
-  // We now have two separate state arrays for the lists
+
   const [upcomingSchedule, setUpcomingSchedule] = useState([]);
   const [completedSchedule, setCompletedSchedule] = useState([]);
   
@@ -13,7 +12,7 @@ function DoctorDashboard() {
   const [error, setError] = useState('');
   const { user } = useAuth();
 
-  // (Modal state is unchanged)
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [patientRecords, setPatientRecords] = useState([]);
@@ -35,7 +34,7 @@ function DoctorDashboard() {
       
       const upcoming = allAppointments
         .filter(app => app.status === 'Scheduled')
-        .sort((a, b) => new Date(a.appointment_time) - new Date(b.appointment_time)); // Oldest first
+        .sort((a, b) => new Date(a.appointment_time) - new Date(b.appointment_time)); 
       
       const completed = allAppointments
         .filter(app => app.status === 'Completed')
@@ -126,7 +125,7 @@ function DoctorDashboard() {
   if (loading) return <h1>Loading your schedule...</h1>;
   if (error) return <h1 className="error-message">{error}</h1>;
 
-  // --- 3. JSX (RETURN BLOCK) UPDATED ---
+  
   return (
     <>
       <div className="dashboard-container">
