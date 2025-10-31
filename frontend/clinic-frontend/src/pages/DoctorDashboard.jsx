@@ -3,16 +3,29 @@ import apiClient from '../api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
 
-function DoctorDashboard() {
+// Static array of weekdays (1=Sunday, 2=Monday, etc.)
+const weekdays = [
+  { id: 2, name: 'Monday' },
+  { id: 3, name: 'Tuesday' },
+  { id: 4, name: 'Wednesday' },
+  { id: 5, name: 'Thursday' },
+  { id: 6, name: 'Friday' },
+  { id: 7, name: 'Saturday' },
+  { id: 1, name: 'Sunday' },
+];
 
+function DoctorDashboard() {
   const [upcomingSchedule, setUpcomingSchedule] = useState([]);
   const [completedSchedule, setCompletedSchedule] = useState([]);
-  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { user } = useAuth();
 
-  
+  // State for Availability
+  const [availability, setAvailability] = useState(new Set());
+  const [availSuccess, setAvailSuccess] = useState('');
+
+  // State for Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [patientRecords, setPatientRecords] = useState([]);
@@ -23,54 +36,92 @@ function DoctorDashboard() {
   const [recordSuccess, setRecordSuccess] = useState('');
 
 
- 
   const fetchSchedule = useCallback(async () => {
-    setLoading(true); 
     try {
       const response = await apiClient.get('/api/doctor/schedule');
-      
-     
       const allAppointments = response.data;
       
       const upcoming = allAppointments
         .filter(app => app.status === 'Scheduled')
-        .sort((a, b) => new Date(a.appointment_time) - new Date(b.appointment_time)); 
+        .sort((a, b) => new Date(a.appointment_time) - new Date(b.appointment_time));
       
       const completed = allAppointments
         .filter(app => app.status === 'Completed')
-        .sort((a, b) => new Date(b.appointment_time) - new Date(a.appointment_time)); 
+        .sort((a, b) => new Date(b.appointment_time) - new Date(a.appointment_time));
 
-      
       setUpcomingSchedule(upcoming);
       setCompletedSchedule(completed);
-
     } catch (err) {
       console.error('Error fetching schedule:', err);
       setError('Failed to load schedule.');
-    } finally {
-      setLoading(false);
     }
-  }, []); 
+  }, []);
+
+  const fetchAvailability = useCallback(async () => {
+    try {
+      const response = await apiClient.get('/api/doctor/availability');
+      const dayIdSet = new Set(response.data.map(d => d.day_id));
+      setAvailability(dayIdSet);
+    } catch (err) {
+      console.error('Error fetching availability:', err);
+      setError('Failed to load availability settings.');
+    }
+  }, []);
 
   useEffect(() => {
-    if (user) {
-      fetchSchedule();
-    }
-  }, [user, fetchSchedule]);
+    const fetchAllData = async () => {
+      if (!user) return;
+      setLoading(true);
+      setError('');
+      await Promise.all([
+        fetchSchedule(),
+        fetchAvailability()
+      ]);
+      setLoading(false);
+    };
+    fetchAllData();
+  }, [user, fetchSchedule, fetchAvailability]);
 
-  
+  // --- THIS FUNCTION ALREADY WORKS ---
+  // It correctly sends the `{ dayIds: ... }` JSON
+  // that your new stored procedure (sp_SetDoctorAvailability)
+  // is expecting. No change is needed here.
+  const handleSaveAvailability = async () => {
+    setAvailSuccess('');
+    setError('');
+    try {
+      const dayIds = Array.from(availability);
+      const response = await apiClient.put('/api/doctor/availability', { dayIds });
+      setAvailSuccess(response.data.message);
+    } catch (err) {
+      console.error('Error saving availability:', err);
+      setError(err.response?.data?.error || 'Failed to save availability.');
+    }
+  };
+
+  const handleAvailabilityChange = (dayId) => {
+    setAvailability(prev => {
+      const newAvailability = new Set(prev);
+      if (newAvailability.has(dayId)) {
+        newAvailability.delete(dayId);
+      } else {
+        newAvailability.add(dayId);
+      }
+      return newAvailability;
+    });
+  };
+
   const handleCompleteAppointment = async (appointmentId) => {
     if (!window.confirm('Mark this appointment as completed?')) return;
     try {
       await apiClient.put(`/api/doctor/appointments/${appointmentId}/complete`);
-      await fetchSchedule(); 
+      await fetchSchedule();
     } catch (err) {
       console.error('Error completing appointment:', err);
       alert(err.response?.data?.error || 'Failed to complete appointment.');
     }
   };
 
-  
   const handleOpenRecords = async (patient) => {
     setSelectedPatient(patient);
     setIsModalOpen(true);
@@ -79,7 +130,6 @@ function DoctorDashboard() {
     setRecordSuccess('');
     setNewDiagnosis('');
     setNewNotes('');
-    
     try {
       const response = await apiClient.get(`/api/doctor/patients/${patient.id}/records`);
       setPatientRecords(response.data);
@@ -95,12 +145,10 @@ function DoctorDashboard() {
     e.preventDefault();
     setRecordError('');
     setRecordSuccess('');
-    
     if (!newDiagnosis) {
       setRecordError('Diagnosis is required.');
       return;
     }
-
     try {
       const response = await apiClient.post('/api/doctor/records', {
         patientId: selectedPatient.id,
@@ -108,31 +156,49 @@ function DoctorDashboard() {
         diagnosis: newDiagnosis,
         notes: newNotes,
       });
-      
       setRecordSuccess(response.data.message);
       setPatientRecords(prevRecords => [response.data, ...prevRecords]);
       setNewDiagnosis('');
       setNewNotes('');
-
-    } catch (err)
- {
+    } catch (err) {
       console.error('Error adding record:', err);
       setRecordError(err.response?.data?.error || 'Failed to add record.');
     }
   };
 
-
   if (loading) return <h1>Loading your schedule...</h1>;
   if (error) return <h1 className="error-message">{error}</h1>;
 
-  
   return (
     <>
       <div className="dashboard-container">
-        {/* We'll use a single, wide column for both tables */}
-        <div style={{ flex: 1 }}>
+        
+        <div className="dashboard-column-side">
+          <div className="card">
+            <h2>My Weekly Availability</h2>
+            <p>Select the days you are available for appointments.</p>
+            <div className="form-group">
+              {weekdays.map(day => (
+                <div key={day.id} style={{ marginBottom: '10px' }}>
+                  <input
+                    type="checkbox"
+                    id={`day-${day.id}`}
+                    checked={availability.has(day.id)}
+                    onChange={() => handleAvailabilityChange(day.id)}
+                    style={{ marginRight: '10px' }}
+                  />
+                  <label htmlFor={`day-${day.id}`}>{day.name}</label>
+                </div>
+              ))}
+            </div>
+            <button onClick={handleSaveAvailability} style={{ width: '100%' }}>
+              Save Availability
+            </button>
+            {availSuccess && <p className="success-message" style={{marginTop: '10px'}}>{availSuccess}</p>}
+          </div>
+        </div>
 
-          {/* --- TABLE 1: UPCOMING APPOINTMENTS --- */}
+        <div className="dashboard-column-main">
           <div className="card">
             <h2>My Upcoming Schedule</h2>
             {upcomingSchedule.length === 0 ? (
@@ -162,7 +228,6 @@ function DoctorDashboard() {
                         </button>
                         <button 
                           onClick={() => handleCompleteAppointment(app.appointment_id)}
-                          // This button is always active here
                         >
                           Complete
                         </button>
@@ -174,8 +239,7 @@ function DoctorDashboard() {
             )}
           </div>
 
-          {/* --- TABLE 2: COMPLETED APPOINTMENTS --- */}
-          <div className="card" style={{ marginTop: '30px' }}>
+          <div className="card">
             <h2>My Completed Appointments</h2>
             {completedSchedule.length === 0 ? (
               <p>You have no completed appointments.</p>
@@ -201,7 +265,6 @@ function DoctorDashboard() {
                           </span>
                         </td>
                         <td>
-                          {/* No "Complete" button here, just "View Records" */}
                           <button 
                             className="notes-toggle-btn"
                             onClick={() => handleOpenRecords({ id: app.patient_id, name: app.patient_name })}
@@ -216,11 +279,9 @@ function DoctorDashboard() {
               </div>
             )}
           </div>
-
         </div>
       </div>
 
-      {/* --- Modal (Unchanged) --- */}
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
@@ -230,7 +291,6 @@ function DoctorDashboard() {
           <p>Loading records...</p>
         ) : (
           <div style={{ display: 'flex', gap: '20px' }}>
-            {/* ... (modal content is unchanged) ... */}
             <div style={{ flex: 1 }}>
               <h4>Past Records</h4>
               {patientRecords.length === 0 ? (

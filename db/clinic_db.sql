@@ -162,7 +162,6 @@ call sp_LoginUser('nilanthadr');
 
 
 
-
 DELIMITER $$
 CREATE PROCEDURE sp_BookAppointment(
     IN p_patient_id INT,
@@ -278,7 +277,7 @@ SELECT
     A.status,
     CONCAT('Dr. ', D.first_name, ' ', D.last_name) AS doctor_name,
     S.name AS specialty,
-    P.patient_id -- IMPORTANT: We need this to filter by patient
+    P.patient_id 
 FROM 
     Appointments AS A
 JOIN 
@@ -819,3 +818,136 @@ DELIMITER ;
 
 GRANT EXECUTE ON PROCEDURE clinic_db.sp_AdminCancelAppointment TO 'api_user'@'localhost';
 FLUSH PRIVILEGES;
+
+select * from specialties;
+
+CREATE TABLE Weekdays (
+    day_id INT PRIMARY KEY, 
+    day_name VARCHAR(10) NOT NULL
+);
+
+
+INSERT INTO Weekdays (day_id, day_name) VALUES
+(1, 'Sunday'),
+(2, 'Monday'),
+(3, 'Tuesday'),
+(4, 'Wednesday'),
+(5, 'Thursday'),
+(6, 'Friday'),
+(7, 'Saturday');
+
+
+CREATE TABLE DoctorAvailability (
+    availability_id INT AUTO_INCREMENT PRIMARY KEY,
+    doctor_id INT,
+    day_id INT,
+    FOREIGN KEY (doctor_id) REFERENCES Doctors(doctor_id) ON DELETE CASCADE,
+    FOREIGN KEY (day_id) REFERENCES Weekdays(day_id),
+    -- A doctor can only be listed once per day
+    UNIQUE KEY uk_doc_day (doctor_id, day_id)
+);
+
+
+INSERT INTO DoctorAvailability(doctor_id, day_id) VALUES (1, 2), (1, 4);
+
+
+DROP PROCEDURE IF EXISTS sp_GetAvailableDoctors;
+DELIMITER $$
+CREATE PROCEDURE sp_GetAvailableDoctors(
+    IN p_date DATE
+)
+BEGIN
+    DECLARE p_day_id INT;
+    SET p_day_id = DAYOFWEEK(p_date);
+    SELECT 
+        d.doctor_id, 
+        d.first_name, 
+        d.last_name, 
+        s.name as specialty
+    FROM Doctors d
+    JOIN Specialties s ON d.specialty_id = s.specialty_id
+    JOIN DoctorAvailability da ON d.doctor_id = da.doctor_id
+    WHERE 
+        d.is_active = TRUE
+        AND da.day_id = p_day_id
+    ORDER BY d.last_name;
+END$$
+DELIMITER ;
+
+
+GRANT EXECUTE ON PROCEDURE sp_GetAvailableDoctors TO 'api_user'@'localhost';
+FLUSH PRIVILEGES;
+
+DELIMITER $$
+CREATE PROCEDURE sp_GetDoctorAvailability(
+    IN p_doctor_id INT
+)
+BEGIN
+    SELECT day_id 
+    FROM DoctorAvailability 
+    WHERE doctor_id = p_doctor_id;
+END$$
+DELIMITER ;
+
+
+GRANT EXECUTE ON PROCEDURE clinic_db.sp_GetDoctorAvailability TO 'api_user'@'localhost';
+FLUSH PRIVILEGES;
+
+DROP PROCEDURE IF EXISTS sp_SetDoctorAvailability;
+
+DELIMITER $$
+CREATE PROCEDURE sp_SetDoctorAvailability(
+    IN p_doctor_id INT,
+    IN p_day_ids_json JSON  
+)
+BEGIN
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK; 
+        RESIGNAL; 
+    END;
+
+    START TRANSACTION;
+    
+    DELETE FROM DoctorAvailability 
+    WHERE doctor_id = p_doctor_id;
+    
+    IF p_day_ids_json IS NOT NULL AND JSON_LENGTH(p_day_ids_json) > 0 THEN
+    
+        INSERT INTO DoctorAvailability (doctor_id, day_id)
+        SELECT p_doctor_id, j.day_id
+        FROM JSON_TABLE(
+            p_day_ids_json,
+            '$[*]' COLUMNS (day_id INT PATH '$')
+        ) AS j;
+        
+    END IF;
+    COMMIT;
+END$$
+DELIMITER ;
+
+
+GRANT EXECUTE ON PROCEDURE clinic_db.sp_SetDoctorAvailability TO 'api_user'@'localhost';
+FLUSH PRIVILEGES;
+
+select * from doctoravailability;
+
+DELIMITER $$
+CREATE TRIGGER trg_prevent_duplicate_specialty
+BEFORE INSERT ON Specialties
+FOR EACH ROW
+BEGIN
+    DECLARE name_count INT;
+
+    SELECT COUNT(*) 
+    INTO name_count 
+    FROM Specialties 
+    WHERE name = NEW.name;
+
+    
+    IF name_count > 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Error: A specialty with this name already exists.';
+    END IF;
+END$$
+DELIMITER ;

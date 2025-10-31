@@ -96,4 +96,54 @@ router.put('/appointments/:id/complete', async (req, res) => {
     }
 });
 
+router.get('/availability', async (req, res) => {
+    const doctorId = req.user.doctorId;
+    let connection;
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        const [results] = await connection.execute(
+            'CALL sp_GetDoctorAvailability(?)',
+            [doctorId]
+        );
+        res.status(200).json(results[0]); // Returns an array like [{day_id: 2}, {day_id: 4}]
+    } catch (error) {
+        console.error('Error fetching availability:', error);
+        res.status(500).json({ error: 'Server error' });
+    } finally {
+        if (connection) await connection.end();
+    }
+});
+
+
+router.put('/availability', async (req, res) => {
+    const doctorId = req.user.doctorId;
+    const { dayIds } = req.body; 
+
+    if (!Array.isArray(dayIds)) {
+        return res.status(400).json({ error: 'Invalid data format. dayIds must be an array.' });
+    }
+
+    let connection;
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        
+  
+        const dayIdsJson = JSON.stringify(dayIds);
+        
+   
+        await connection.execute(
+            'CALL sp_SetDoctorAvailability(?, ?)', 
+            [doctorId, dayIdsJson]
+        );
+
+        res.status(200).json({ message: 'Availability updated successfully.' });
+
+    } catch (error) {
+        
+        console.error('Error setting availability:', error);
+        res.status(500).json({ error: error.message }); 
+    } finally {
+        if (connection) await connection.end();
+    }
+});
 module.exports = router;

@@ -85,20 +85,25 @@ router.get('/appointments', async (req, res) => {
 
 
 router.get('/doctors', async (req, res) => {
+    const { date } = req.query; 
+    if (!date) {
+        return res.status(200).json([]);
+    }
+
     let connection;
     try {
         connection = await mysql.createConnection(dbConfig);
         
-        const [rows] = await connection.query(
-            `SELECT d.doctor_id, d.first_name, d.last_name, s.name as specialty 
-             FROM Doctors d
-             JOIN Specialties s ON d.specialty_id = s.specialty_id
-             WHERE d.is_active = TRUE
-             ORDER BY d.last_name`
+        // Call the new stored procedure
+        const [rows] = await connection.execute(
+            'CALL sp_GetAvailableDoctors(?)',
+            [date]
         );
-        res.status(200).json(rows);
+        
+        res.status(200).json(rows[0]);
+
     } catch (error) {
-        console.error('Error fetching doctors:', error);
+        console.error('Error fetching available doctors:', error);
         res.status(500).json({ error: 'Server error' });
     } finally {
         if (connection) await connection.end();
@@ -180,5 +185,7 @@ router.get('/medicalrecords', async (req, res) => {
         if (connection) await connection.end();
     }
 });
+
+
 
 module.exports = router;
