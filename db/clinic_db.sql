@@ -160,9 +160,7 @@ DELIMITER ;
 
 call sp_LoginUser('nilanthadr');
 
-GRANT EXECUTE ON PROCEDURE clinic_db.sp_RegisterPatient TO 'api_user'@'localhost';
-GRANT EXECUTE ON PROCEDURE clinic_db.sp_LoginUser TO 'api_user'@'localhost';
-FLUSH PRIVILEGES;
+
 
 
 DELIMITER $$
@@ -354,6 +352,8 @@ BEGIN
 END$$
 DELIMITER ;
 
+DROP VIEW IF EXISTS v_DoctorSchedule;
+
 CREATE VIEW v_DoctorSchedule AS
 SELECT 
     A.appointment_id,
@@ -369,7 +369,8 @@ FROM
 JOIN 
     Patients AS P ON A.patient_id = P.patient_id
 WHERE
-    A.status = 'Scheduled'; 
+    -- This is the change:
+    A.status IN ('Scheduled', 'Completed');
     
 GRANT EXECUTE ON PROCEDURE clinic_db.sp_CreateMedicalRecord TO 'api_user'@'localhost';
 GRANT EXECUTE ON PROCEDURE clinic_db.sp_CompleteAppointment TO 'api_user'@'localhost';
@@ -391,7 +392,7 @@ ALTER TABLE Doctors
 ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE;
 
 
-DROP PROCEDURE IF EXISTS sp_AdminCreateDoctor; -- Drop the old one
+DROP PROCEDURE IF EXISTS sp_AdminCreateDoctor; 
 
 DELIMITER $$
 CREATE PROCEDURE sp_AdminCreateDoctor(
@@ -463,6 +464,9 @@ DELIMITER ;
 
 
 GRANT EXECUTE ON PROCEDURE clinic_db.sp_AdminActivateDoctor TO 'api_user'@'localhost';
+FLUSH PRIVILEGES;
+
+GRANT EXECUTE ON PROCEDURE clinic_db.sp_AdminCreateDoctor TO 'api_user'@'localhost';
 FLUSH PRIVILEGES;
 
 DELIMITER $$
@@ -548,7 +552,7 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Error: Cannot delete specialty. It is still assigned to one or more doctors.';
     ELSE
-        -- 3. If it's not in use, delete it
+       
         DELETE FROM Specialties 
         WHERE specialty_id = p_specialty_id;
         
@@ -643,3 +647,121 @@ END$$
 DELIMITER ;
 
 SHOW EVENTS FROM clinic_db;
+
+CREATE INDEX idx_records_patient ON MedicalRecords(patient_id);
+CREATE INDEX idx_app_patient ON Appointments(patient_id);
+CREATE INDEX idx_app_doctor_time ON Appointments(doctor_id, appointment_time);
+
+select * from medicalrecords;
+
+
+CREATE VIEW v_PatientMedicalRecords AS
+SELECT 
+    mr.record_id,
+    mr.patient_id,
+    mr.visit_date,
+    mr.diagnosis,
+    mr.notes,
+    CONCAT('Dr. ', d.first_name, ' ', d.last_name) AS doctor_name,
+    s.name AS specialty
+FROM 
+    MedicalRecords mr
+JOIN 
+    Doctors d ON mr.doctor_id = d.doctor_id
+JOIN 
+    Specialties s ON d.specialty_id = s.specialty_id;
+
+
+GRANT SELECT ON clinic_db.v_PatientMedicalRecords TO 'api_user'@'localhost';
+FLUSH PRIVILEGES;
+
+select * from appointments;
+
+
+
+ALTER TABLE Patients
+ADD COLUMN last_visit_date DATE NULL;
+
+DELIMITER $$
+CREATE TRIGGER trg_update_last_visit
+AFTER INSERT ON MedicalRecords
+FOR EACH ROW
+BEGIN
+    UPDATE Patients
+    SET last_visit_date = NEW.visit_date
+    WHERE patient_id = NEW.patient_id;
+END$$
+DELIMITER ;
+
+ALTER TABLE Appointments
+MODIFY COLUMN status ENUM('Scheduled', 'Completed', 'Cancelled', 'Missed') NOT NULL DEFAULT 'Scheduled';
+
+
+DELIMITER $$
+CREATE EVENT evt_mark_no_shows
+ON SCHEDULE EVERY 1 DAY
+STARTS CURDATE() + INTERVAL 1 DAY + INTERVAL 1 HOUR
+DO
+BEGIN
+    UPDATE Appointments
+    SET status = 'Missed'
+    WHERE status = 'Scheduled'
+      AND DATE(appointment_time) < CURDATE();
+END$$
+DELIMITER ;
+
+DROP VIEW IF EXISTS v_PatientList;
+CREATE VIEW v_PatientList AS
+SELECT 
+    p.patient_id,
+    p.first_name,
+    p.last_name,
+    p.email,
+    p.phone,
+    u.status 
+FROM 
+    Patients p
+JOIN 
+    Users u ON p.patient_id = u.linked_patient_id;
+    
+
+DROP PROCEDURE IF EXISTS sp_AdminDeactivatePatient;
+DELIMITER $$
+CREATE PROCEDURE sp_AdminDeactivatePatient(
+    IN p_patient_id INT
+)
+BEGIN
+    UPDATE Users
+    SET status = 'inactive'
+    WHERE linked_patient_id = p_patient_id;
+    
+    SELECT 'Patient account deactivated.' AS message;
+END$$
+DELIMITER ;
+
+
+DROP PROCEDURE IF EXISTS sp_AdminActivatePatient;
+DELIMITER $$
+CREATE PROCEDURE sp_AdminActivatePatient(
+    IN p_patient_id INT
+)
+BEGIN
+    UPDATE Users
+    SET status = 'active'
+    WHERE linked_patient_id = p_patient_id;
+    
+    SELECT 'Patient account activated.' AS message;
+END$$
+DELIMITER ;
+
+
+
+GRANT EXECUTE ON PROCEDURE clinic_db.sp_RegisterPatient TO 'api_user'@'localhost';
+GRANT EXECUTE ON PROCEDURE clinic_db.sp_LoginUser TO 'api_user'@'localhost';
+FLUSH PRIVILEGES;
+
+
+GRANT SELECT ON clinic_db.v_PatientList TO 'api_user'@'localhost';
+GRANT EXECUTE ON PROCEDURE clinic_db.sp_AdminDeactivatePatient TO 'api_user'@'localhost';
+GRANT EXECUTE ON PROCEDURE clinic_db.sp_AdminActivatePatient TO 'api_user'@'localhost';
+FLUSH PRIVILEGES;
