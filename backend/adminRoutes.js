@@ -169,4 +169,50 @@ router.get('/doctors', async (req, res) => {
     }
 });
 
+router.get('/patients', async (req, res) => {
+    let connection;
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        const [rows] = await connection.query('SELECT * FROM v_PatientList ORDER BY last_name');
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error('Error fetching patients:', error);
+        res.status(500).json({ error: 'Server error' });
+    } finally {
+        if (connection) await connection.end();
+    }
+});
+
+
+router.delete('/patients/:id', async (req, res) => {
+    const { id: patientId } = req.params;
+    let connection;
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        const [results] = await connection.execute('CALL sp_AdminDeactivatePatient(?)', [patientId]);
+        res.status(200).json(results[0][0]);
+    } catch (error) {
+        console.error('Error deactivating patient:', error);
+        res.status(500).json({ error: 'Server error' });
+    } finally {
+        if (connection) await connection.end();
+    }
+});
+
+
+router.put('/patients/:id/activate', async (req, res) => {
+    const { id: patientId } = req.params;
+    let connection;
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        const [results] = await connection.execute('CALL sp_AdminActivatePatient(?)', [patientId]);
+        res.status(200).json(results[0][0]);
+    } catch (error) {
+        console.error('Error activating patient:', error);
+        res.status(500).json({ error: 'Server error' });
+    } finally {
+        if (connection) await connection.end();
+    }
+});
+
 module.exports = router;

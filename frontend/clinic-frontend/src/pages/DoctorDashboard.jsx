@@ -1,39 +1,57 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api';
 import { useAuth } from '../context/AuthContext';
-import Modal from '../components/Modal'; 
+import Modal from '../components/Modal';
 
 function DoctorDashboard() {
-  const [schedule, setSchedule] = useState([]);
+  // --- 1. STATE UPDATED ---
+  // We now have two separate state arrays for the lists
+  const [upcomingSchedule, setUpcomingSchedule] = useState([]);
+  const [completedSchedule, setCompletedSchedule] = useState([]);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { user } = useAuth();
 
-
+  // (Modal state is unchanged)
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState(null); 
+  const [selectedPatient, setSelectedPatient] = useState(null);
   const [patientRecords, setPatientRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(false);
-
-  
   const [newDiagnosis, setNewDiagnosis] = useState('');
   const [newNotes, setNewNotes] = useState('');
   const [recordError, setRecordError] = useState('');
   const [recordSuccess, setRecordSuccess] = useState('');
 
 
+  // --- 2. FETCHSCHEDULE FUNCTION UPDATED ---
   const fetchSchedule = useCallback(async () => {
-    setLoading(true);
+    setLoading(true); 
     try {
       const response = await apiClient.get('/api/doctor/schedule');
-      setSchedule(response.data);
+      
+      // Filter the single API response into two lists
+      const allAppointments = response.data;
+      
+      const upcoming = allAppointments
+        .filter(app => app.status === 'Scheduled')
+        .sort((a, b) => new Date(a.appointment_time) - new Date(b.appointment_time)); // Oldest first
+      
+      const completed = allAppointments
+        .filter(app => app.status === 'Completed')
+        .sort((a, b) => new Date(b.appointment_time) - new Date(a.appointment_time)); // Newest first
+
+      // Set the two separate state arrays
+      setUpcomingSchedule(upcoming);
+      setCompletedSchedule(completed);
+
     } catch (err) {
       console.error('Error fetching schedule:', err);
       setError('Failed to load schedule.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, []); // Empty array, this function is created once
 
   useEffect(() => {
     if (user) {
@@ -41,20 +59,19 @@ function DoctorDashboard() {
     }
   }, [user, fetchSchedule]);
 
+  // This function is now perfect - it re-fetches both lists
   const handleCompleteAppointment = async (appointmentId) => {
     if (!window.confirm('Mark this appointment as completed?')) return;
     try {
       await apiClient.put(`/api/doctor/appointments/${appointmentId}/complete`);
-      setSchedule(prevSchedule => 
-        prevSchedule.filter(app => app.appointment_id !== appointmentId)
-      );
+      await fetchSchedule(); // This will refresh both tables
     } catch (err) {
       console.error('Error completing appointment:', err);
       alert(err.response?.data?.error || 'Failed to complete appointment.');
     }
   };
 
- 
+  // ... (All other handlers: handleOpenRecords, handleAddRecord, etc. are unchanged) ...
   const handleOpenRecords = async (patient) => {
     setSelectedPatient(patient);
     setIsModalOpen(true);
@@ -75,7 +92,6 @@ function DoctorDashboard() {
     }
   };
 
-
   const handleAddRecord = async (e) => {
     e.preventDefault();
     setRecordError('');
@@ -89,19 +105,18 @@ function DoctorDashboard() {
     try {
       const response = await apiClient.post('/api/doctor/records', {
         patientId: selectedPatient.id,
-        visitDate: new Date().toISOString(), 
+        visitDate: new Date().toISOString(),
         diagnosis: newDiagnosis,
         notes: newNotes,
       });
       
       setRecordSuccess(response.data.message);
-  
       setPatientRecords(prevRecords => [response.data, ...prevRecords]);
-  
       setNewDiagnosis('');
       setNewNotes('');
 
-    } catch (err) {
+    } catch (err)
+ {
       console.error('Error adding record:', err);
       setRecordError(err.response?.data?.error || 'Failed to add record.');
     }
@@ -111,13 +126,17 @@ function DoctorDashboard() {
   if (loading) return <h1>Loading your schedule...</h1>;
   if (error) return <h1 className="error-message">{error}</h1>;
 
+  // --- 3. JSX (RETURN BLOCK) UPDATED ---
   return (
-    <> 
+    <>
       <div className="dashboard-container">
+        {/* We'll use a single, wide column for both tables */}
         <div style={{ flex: 1 }}>
+
+          {/* --- TABLE 1: UPCOMING APPOINTMENTS --- */}
           <div className="card">
             <h2>My Upcoming Schedule</h2>
-            {schedule.length === 0 ? (
+            {upcomingSchedule.length === 0 ? (
               <p>You have no upcoming appointments.</p>
             ) : (
               <table>
@@ -130,21 +149,21 @@ function DoctorDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {schedule.map((app) => (
+                  {upcomingSchedule.map((app) => (
                     <tr key={app.appointment_id}>
                       <td>{new Date(app.appointment_time).toLocaleString()}</td>
                       <td>{app.patient_name}</td>
                       <td>{app.patient_phone}</td>
                       <td style={{ display: 'flex', gap: '10px' }}>
-                        
                         <button 
-                          className="cancel-btn" 
+                          className="notes-toggle-btn"
                           onClick={() => handleOpenRecords({ id: app.patient_id, name: app.patient_name })}
                         >
                           View/Add Records
                         </button>
                         <button 
                           onClick={() => handleCompleteAppointment(app.appointment_id)}
+                          // This button is always active here
                         >
                           Complete
                         </button>
@@ -155,10 +174,54 @@ function DoctorDashboard() {
               </table>
             )}
           </div>
+
+          {/* --- TABLE 2: COMPLETED APPOINTMENTS --- */}
+          <div className="card" style={{ marginTop: '30px' }}>
+            <h2>My Completed Appointments</h2>
+            {completedSchedule.length === 0 ? (
+              <p>You have no completed appointments.</p>
+            ) : (
+              <div className="table-container" style={{ maxHeight: '400px' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date & Time</th>
+                      <th>Patient Name</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {completedSchedule.map((app) => (
+                      <tr key={app.appointment_id}>
+                        <td>{new Date(app.appointment_time).toLocaleString()}</td>
+                        <td>{app.patient_name}</td>
+                        <td>
+                          <span className="status-badge status-Completed">
+                            {app.status}
+                          </span>
+                        </td>
+                        <td>
+                          {/* No "Complete" button here, just "View Records" */}
+                          <button 
+                            className="notes-toggle-btn"
+                            onClick={() => handleOpenRecords({ id: app.patient_id, name: app.patient_name })}
+                          >
+                            View Records
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
 
-      
+      {/* --- Modal (Unchanged) --- */}
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
@@ -168,7 +231,7 @@ function DoctorDashboard() {
           <p>Loading records...</p>
         ) : (
           <div style={{ display: 'flex', gap: '20px' }}>
-            {/* Column 1: Past Records */}
+            {/* ... (modal content is unchanged) ... */}
             <div style={{ flex: 1 }}>
               <h4>Past Records</h4>
               {patientRecords.length === 0 ? (
@@ -185,7 +248,6 @@ function DoctorDashboard() {
               )}
             </div>
             
-            {/* Column 2: Add New Record Form */}
             <div style={{ flex: 1, borderLeft: '1px solid #eee', paddingLeft: '20px' }}>
               <h4>Add New Record</h4>
               <form onSubmit={handleAddRecord}>
@@ -194,7 +256,7 @@ function DoctorDashboard() {
                   <input 
                     type="text" 
                     value={newDiagnosis}
-                    onChange={(e) => setNewDiagnosis(e.target.value)}
+                    onChange={(e) => setNewDiagnosis(e.Dtarget.value)}
                   />
                 </div>
                 <div>
