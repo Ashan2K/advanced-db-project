@@ -779,3 +779,43 @@ FROM
     Doctors d
 JOIN 
     Specialties s ON d.specialty_id = s.specialty_id;
+    
+DROP VIEW IF EXISTS v_MasterSchedule;
+CREATE VIEW v_MasterSchedule AS
+SELECT 
+    A.appointment_id,
+    A.appointment_time,
+    A.status,
+    CONCAT(P.first_name, ' ', P.last_name) AS patient_name,
+    CONCAT('Dr. ', D.first_name, ' ', D.last_name) AS doctor_name,
+    S.name AS specialty
+FROM 
+    Appointments AS A
+JOIN 
+    Patients AS P ON A.patient_id = P.patient_id
+JOIN 
+    Doctors AS D ON A.doctor_id = D.doctor_id
+JOIN 
+    Specialties AS S ON D.specialty_id = S.specialty_id;
+
+
+GRANT SELECT ON clinic_db.v_MasterSchedule TO 'api_user'@'localhost';
+FLUSH PRIVILEGES;
+
+DELIMITER $$
+CREATE PROCEDURE sp_AdminCancelAppointment(
+    IN p_appointment_id INT
+)
+BEGIN
+    UPDATE Appointments
+    SET status = 'Cancelled'
+    WHERE appointment_id = p_appointment_id
+      AND status != 'Completed'; -- Don't cancel an already completed visit
+    
+    SELECT 'Appointment cancelled by admin.' AS message;
+END$$
+DELIMITER ;
+
+
+GRANT EXECUTE ON PROCEDURE clinic_db.sp_AdminCancelAppointment TO 'api_user'@'localhost';
+FLUSH PRIVILEGES;

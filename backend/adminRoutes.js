@@ -41,6 +41,7 @@ router.get('/specialties', async (req, res) => {
 });
 
 
+
 router.post('/specialties', async (req, res) => {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
@@ -52,7 +53,10 @@ router.post('/specialties', async (req, res) => {
             'INSERT INTO Specialties (name) VALUES (?)', 
             [name]
         );
-        res.status(201).json({ id: result.insertId, name });
+        console.log('Inserted specialty with ID:', result.insertId);
+        res.status(201).json({ specialty_id: result.insertId, name });
+       
+
     } catch (error) {
         res.status(500).json({ error: 'Server error' });
     } finally {
@@ -215,4 +219,35 @@ router.put('/patients/:id/activate', async (req, res) => {
     }
 });
 
+router.get('/appointments', async (req, res) => {
+    let connection;
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        const [rows] = await connection.query(
+            'SELECT * FROM v_MasterSchedule ORDER BY appointment_time DESC'
+        );
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error('Error fetching all appointments:', error);
+        res.status(500).json({ error: 'Server error' });
+    } finally {
+        if (connection) await connection.end();
+    }
+});
+
+
+router.delete('/appointments/:id', async (req, res) => {
+    const { id: appointmentId } = req.params;
+    let connection;
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        const [results] = await connection.execute('CALL sp_AdminCancelAppointment(?)', [appointmentId]);
+        res.status(200).json(results[0][0]);
+    } catch (error) {
+        console.error('Error cancelling appointment:', error);
+        res.status(500).json({ error: 'Server error' });
+    } finally {
+        if (connection) await connection.end();
+    }
+});
 module.exports = router;
