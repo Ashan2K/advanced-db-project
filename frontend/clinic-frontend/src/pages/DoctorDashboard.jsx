@@ -24,13 +24,13 @@ function DoctorDashboard() {
   const [recordSuccess, setRecordSuccess] = useState('');
 
 
-  // --- 2. FETCHSCHEDULE FUNCTION UPDATED ---
+ 
   const fetchSchedule = useCallback(async () => {
     setLoading(true); 
     try {
       const response = await apiClient.get('/api/doctor/schedule');
       
-      // Filter the single API response into two lists
+     
       const allAppointments = response.data;
       
       const upcoming = allAppointments
@@ -39,9 +39,9 @@ function DoctorDashboard() {
       
       const completed = allAppointments
         .filter(app => app.status === 'Completed')
-        .sort((a, b) => new Date(b.appointment_time) - new Date(a.appointment_time)); // Newest first
+        .sort((a, b) => new Date(b.appointment_time) - new Date(a.appointment_time)); 
 
-      // Set the two separate state arrays
+      
       setUpcomingSchedule(upcoming);
       setCompletedSchedule(completed);
 
@@ -51,7 +51,7 @@ function DoctorDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []); // Empty array, this function is created once
+  }, []); 
 
   useEffect(() => {
     if (user) {
@@ -59,19 +59,19 @@ function DoctorDashboard() {
     }
   }, [user, fetchSchedule]);
 
-  // This function is now perfect - it re-fetches both lists
+  
   const handleCompleteAppointment = async (appointmentId) => {
     if (!window.confirm('Mark this appointment as completed?')) return;
     try {
       await apiClient.put(`/api/doctor/appointments/${appointmentId}/complete`);
-      await fetchSchedule(); // This will refresh both tables
+      await fetchSchedule(); 
     } catch (err) {
       console.error('Error completing appointment:', err);
       alert(err.response?.data?.error || 'Failed to complete appointment.');
     }
   };
 
-  // ... (All other handlers: handleOpenRecords, handleAddRecord, etc. are unchanged) ...
+  
   const handleOpenRecords = async (patient) => {
     setSelectedPatient(patient);
     setIsModalOpen(true);
@@ -256,7 +256,7 @@ function DoctorDashboard() {
                   <input 
                     type="text" 
                     value={newDiagnosis}
-                    onChange={(e) => setNewDiagnosis(e.Dtarget.value)}
+                    onChange={(e) => setNewDiagnosis(e.target.value)}
                   />
                 </div>
                 <div>

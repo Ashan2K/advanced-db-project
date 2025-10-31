@@ -63,8 +63,6 @@ function PatientDashboard() {
     fetchData();
   }, [user, fetchAppointments]);
 
-  // --- 3. UPDATED: handleProfileUpdate to re-fetch logs ---
-  // (We'll keep this in case you re-add the audit log)
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     setProfileError('');
@@ -73,14 +71,14 @@ function PatientDashboard() {
       setProfile(response.data); 
       setFormData(response.data);
       setIsEditing(false);
-      // You could re-fetch an audit log here if you add it back
+    
     } catch (err) {
       console.error('Profile update error:', err);
       setProfileError(err.response?.data?.error || 'Failed to save profile.');
     }
   };
 
-  // ... (handleBookAppointment, handleCancelAppointment, etc. are unchanged) ...
+
   const handleBookAppointment = async (e) => {
     e.preventDefault();
     setBookError('');
@@ -90,7 +88,7 @@ function PatientDashboard() {
       return;
     }
     try {
-      const response = await apiClient.post('/api/me/appointments', {
+      const response = await apiClient.post('/api/me/book-appointment', {
         doctorId: selectedDoctor,
         appointmentTime: appointmentTime,
       });
